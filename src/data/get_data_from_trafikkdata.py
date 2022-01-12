@@ -18,7 +18,7 @@ transport = RequestsHTTPTransport(
 
 client = Client(transport=transport, fetch_schema_from_transport=True)
 
-filedir = '../../data'
+filedir = './data'
 filename = filedir + '/' + 'trafikkdata_hourly_TRAFFICSTATION.csv'
 
 filepath = Path(filedir)
@@ -54,12 +54,15 @@ queryByHour = """
 }
 """
 
+length_cats = ['[5.6,..)', '[5.6,7.6)', '[7.6,12.5)', 
+               '[12.5,16.0)', '[16.0,24.0)', '[24.0,..)']
+
 def get_data_from_trafikkdata(trafficstation):
     hasNextPage = True
     endCursor = ""
     count = 0
-
-    tdf = pd.DataFrame()
+    
+    dfs = []
 
     while hasNextPage:
         
@@ -88,14 +91,16 @@ def get_data_from_trafikkdata(trafficstation):
         # Extract data and convert JSON to dataframe
         df_bylength = pd.json_normalize(df['node.byLengthRange'])
         if not df_bylength.empty:
-            for column in df_bylength:
+            for column, lcat in zip(df_bylength, length_cats):
                 df_long = pd.json_normalize(df_bylength[column])
                 df = df.join(df_long['total.volumeNumbers.volume'],
-                             rsuffix=df_long['lengthRange.representation'].iloc[0])
+                             rsuffix=lcat)
 
         # add data to global dataframe
-        tdf = tdf.append(df, ignore_index=True)
+        dfs.append(df)
         
+    tdf = pd.concat(dfs, axis=0)
+    
     # drop column no longer used
     tdf.drop(columns=['node.byLengthRange'], inplace=True)
     
